@@ -32,6 +32,7 @@ class Meta(BaseModel):
 
     legal_name: Optional[str] = None       # raw registry name, unmodified
     website: Optional[str] = None
+    favicon: Optional[str] = None          # verified icon URL from the site, best-effort
     headquarters: Optional[Headquarters] = None
     assets_usd: Optional[int] = Field(None, ge=0)
     deposits_usd: Optional[int] = Field(None, ge=0)   # banks only
