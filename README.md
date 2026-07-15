@@ -7,40 +7,49 @@ file with a canonical slug per institution. 8,629 records: 4,259 banks from the
 34 fintechs curated by hand. Pulled July 2026.
 
 Financial documents write institution names however they want: "JPMORGAN CHASE
-BANK NA", "Chase", "JPM". This gives you one stable key per real institution to
-resolve that mess against. Useful anywhere free text needs to become a known
-institution: statement parsing, transaction enrichment, entity matching.
+BANK NA", "Chase", "JPM". This dataset maps that free text to one stable key
+per institution. Built for statement parsing, transaction enrichment, and
+entity matching.
 
-```json
-{
-  "slug": "chase",
-  "display_name": "Chase",
-  "institution_type": "bank",
-  "fdic_cert": 628,
-  "ncua_charter": null,
-  "rssd_id": 852218,
-  "meta": {
-    "legal_name": "JPMorgan Chase Bank, National Association",
-    "website": "www.jpmorganchase.com",
-    "favicon": "https://www.jpmorganchase.com/etc.clientlibs/cws/clientlibs/clientlib-base/resources/jpmc/images/jpmc-favicon-120.png",
-    "headquarters": {"city": "Columbus", "state": "OH"},
-    "assets_usd": 4016571000000,
-    "deposits_usd": 2787994000000
-  }
-}
-```
+## Record
 
-`display_name` is what a statement would print; the registry legal name is kept
-verbatim in `meta`. Slugs are unique across the whole file. When names collide
-for real (there are 19 distinct banks named "Citizens Bank") the slugs carry a
-state suffix: `citizens_bank_ri`, `citizens_bank_ar`. Identity lives in the
-regulator IDs, never in names. Fintechs are not chartered, so they have no IDs;
-their `meta.partner_banks` lists the banks that hold their deposits.
+| field | type | |
+|---|---|---|
+| `slug` | `str` | unique key: `chase`, `navy_fcu`, `citizens_bank_ri` |
+| `display_name` | `str` | the name a statement prints, not the legal name |
+| `institution_type` | `bank \| credit_union \| fintech \| other` | |
+| `fdic_cert` | `int?` | banks |
+| `ncua_charter` | `int?` | credit unions |
+| `rssd_id` | `int?` | Federal Reserve ID, banks and credit unions |
+| `meta.legal_name` | `str?` | registry name, verbatim |
+| `meta.website` | `str?` | |
+| `meta.favicon` | `str?` | icon URL from the site, verified to return an image |
+| `meta.headquarters` | `{city?, state?}` | |
+| `meta.assets_usd` | `int?` | |
+| `meta.deposits_usd` | `int?` | banks only |
+| `meta.trade_names` | `list[str]?` | credit unions: registered DBAs |
+| `meta.partner_banks` | `list[str]?` | fintechs: the chartered banks holding deposits |
 
-Most records have `meta.favicon`: the institution's own icon URL, read from its
-website and verified to return an image. About 90% of sites yield one. Icons
-move when sites redeploy, so cache them server side if you render these;
-`python3 favicons.py` refreshes the column.
+[`models.py`](models.py) defines this as Pydantic models and validates the
+dataset, including the type/ID rules: banks carry `fdic_cert`, credit unions
+carry `ncua_charter`, fintechs are not chartered and carry no IDs.
+
+Favicons cover about 90% of sites; the rest are dead domains, WAF blocks, or
+sites with no icon. Icons move when sites redeploy, so cache them server side.
+Partner banks change over time, treat them as hints.
+
+## Slugs
+
+Slugs are unique across the whole file. When names collide for real (there are
+19 distinct banks named "Citizens Bank") the slugs carry a state suffix:
+`citizens_bank_ri`, `citizens_bank_ar`. Identity lives in the regulator IDs,
+never in names.
+
+Display names come from the registry legal names by deleting boilerplate
+("National Association", ", Inc."), restoring the suffix NCUA strips from
+credit union names, and preferring a registered trade name where it is clearly
+the brand (BECU, 3Rivers). About 80 brands that can't be derived mechanically
+are hand-mapped in [`build.py`](build.py), keyed by regulator ID.
 
 ## Run
 
@@ -55,9 +64,9 @@ new cycle drops.
 
 ## Motivation
 
-We are [Lend Pathway](https://lendpathway.com). Our parser reads hundreds of
-thousands of bank statements, and every transaction needs to be attributed to a
-real institution. Bank names in the wild were chaos; canonical slugs fixed it.
-Anyone parsing financial documents hits the same wall, so here it is.
+We are [Lend Pathway](https://lendpathway.com). Our parser reads bank
+statements and has to attribute each account to a real institution, which
+requires exactly this table. We built it, we keep it current, and there was no
+reason to keep it private.
 
 MIT license. Author: Armaan Kapoor.
